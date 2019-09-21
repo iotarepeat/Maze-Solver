@@ -1,5 +1,5 @@
 from processImage import *
-import cv2, numpy as np
+import cv2, numpy as np, time
 
 
 class PriorityQueue:
@@ -90,6 +90,12 @@ class Node:
         self.via = via
         self.weight = weight
 
+    def __eq__(self, other):
+        return (self.x, self.y) == (other.x, other.y)
+
+    def __hash__(self):
+        return hash((self.x, self.y))
+
     def __repr__(self):
         return f"X = {self.x}, Y = {self.y}, via = ({self.via.x},{self.via.y}), weight = {self.weight}"
 
@@ -154,7 +160,7 @@ class MazeSolve:
 
         while (node.x, node.y) != self.dst:
             node = queue.extract_min()
-            if (node.x, node.y) in visited:
+            if node in visited:
                 continue
             iteration += 1
             for x, y in self.getAdjacent(node):
@@ -165,7 +171,7 @@ class MazeSolve:
                     if not queue.decreaseWeight(tmp):
                         # Else add node to queue
                         queue.insert(tmp)
-            visited.add((node.x, node.y))
+            visited.add(node)
 
         # ===== Retrace path =====
         while (node.x, node.y) != (-1, -1):
@@ -173,6 +179,76 @@ class MazeSolve:
             node = node.via
 
         # ===== Write Image =====
+        return self.write()
+
+    def meetInMiddle(self):
+        # ===== Init =====
+        src = Node(*self.src, (-1, -1), 0)
+        dst = Node(*self.dst, (-2, -2), 0)
+        visitedSrc = set()
+        visitedDst = set()
+        queSrc = PriorityQueue()
+        queDst = PriorityQueue()
+        queSrc.insert(src)
+        queDst.insert(dst)
+        common = set()
+        iteration = 0
+
+        def heuristic(x, y, dst):
+            """
+                Find Euclidean distance between (x,y) and dst
+            """
+            return (dst[0] - x) ** 2 + (dst[1] - y) ** 2
+
+        while len(common) == 0:
+            iteration += 1
+            # ===== Expand From Src =====
+            nodeSrc = queSrc.extract_min()
+            if nodeSrc not in visitedSrc:
+                for x, y in self.getAdjacent(nodeSrc):
+                    # Check if (x,y) is white node
+                    if np.array_equal(self.img[y, x], [255, 255, 255]):
+                        tmp = Node(x, y, nodeSrc, iteration + heuristic(x, y, self.dst))
+                        # Check if node exists in queue, if it does set minimum possible weight
+                        if not queSrc.decreaseWeight(tmp):
+                            # Else add node to queue
+                            queSrc.insert(tmp)
+                visitedSrc.add(nodeSrc)
+
+            # ===== Expand From Dst =====
+            nodeDst = queDst.extract_min()
+            if nodeDst not in visitedDst:
+                for x, y in self.getAdjacent(nodeDst):
+                    # Check if (x,y) is white node
+                    if np.array_equal(self.img[y, x], [255, 255, 255]):
+                        tmp = Node(x, y, nodeDst, iteration + heuristic(x, y, self.src))
+                        # Check if node exists in queue, if it does set minimum possible weight
+                        if not queDst.decreaseWeight(tmp):
+                            # Else add node to queue
+                            queDst.insert(tmp)
+                visitedDst.add(nodeDst)
+                common = visitedSrc.intersection(visitedDst)
+
+        # ===== Backtrack =====
+        if nodeDst in common:
+            while nodeSrc != nodeDst:
+                nodeSrc = visitedSrc.pop()
+        elif nodeSrc in common:
+            while nodeDst != nodeSrc:
+                nodeDst = visitedDst.pop()
+
+        # ===== Retrace path =====
+        while (nodeSrc.x, nodeSrc.y) != self.src:
+            self.img[nodeSrc.y, nodeSrc.x] = [0, 0, 255]
+            nodeSrc = nodeSrc.via
+        self.img[nodeSrc.y, nodeSrc.x] = [0, 0, 255]
+
+        while (nodeDst.x, nodeDst.y) != self.dst:
+            self.img[nodeDst.y, nodeDst.x] = [0, 0, 255]
+            nodeDst = nodeDst.via
+        self.img[nodeDst.y, nodeDst.x] = [0, 0, 255]
+
+        # ===== Write Changes =====
         return self.write()
 
     def write(self):
@@ -183,6 +259,15 @@ class MazeSolve:
         """
         cv2.imwrite("solved.png", postProcess(self.img, self.size))
         return self.img
+
+
+def display(img, delay=1):
+    cv2.imshow("Frame", img)
+    k = cv2.waitKey(delay)
+    if k == 27:
+        cv2.destroyAllWindows()
+        exit(0)
+
 
 if __name__ == "__main__":
     print("Run main.py")

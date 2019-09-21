@@ -1,20 +1,14 @@
-from mazeSolve import MazeSolve
+from mazeSolve import MazeSolve,display
 import cv2, numpy as np
 import time
 import sys
 
 
-def display(img, delay=1):
-    cv2.imshow("Frame", img)
-    k = cv2.waitKey(delay)
-    if k == 27:
-        cv2.destroyAllWindows()
-        exit(0)
 
 
 if __name__ == "__main__":
-    s = MazeSolve(sys.argv[1])
+    s = MazeSolve("2.png")
     start = time.time()
-    image = s.Astar()
+    image = s.meetInMiddle()
     print("Elapsed:", time.time() - start)
-    # display(image, 0)
+    display(image, 0)
