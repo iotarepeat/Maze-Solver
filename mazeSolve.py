@@ -135,6 +135,48 @@ class MazeSolve:
             sign *= -1
         return retList
 
+    def heuristic(self, x, y, dst):
+        """
+            Find Euclidean distance between (x,y) and dst
+        """
+        return (dst[0] - x) ** 2 + (dst[1] - y) ** 2
+
+    def Dijakstra(self):
+        """
+            Apply Dijakstra search algorithm
+            Same as Astar, except h(x) is always 0
+        """
+        # ===== Init =====
+        queue = PriorityQueue()
+        node = Node(*self.src, Node(-1, -1, -1, -1), 0)
+        visited = set()
+        queue.insert(node)
+        iteration = 0
+
+        # ===== Algorithm =====
+        while (node.x, node.y) != self.dst:
+            node = queue.extract_min()
+            if node in visited:
+                continue
+            iteration += 1
+            for x, y in self.getAdjacent(node):
+                # Check if (x,y) is white node
+                if np.array_equal(self.img[y, x], [255, 255, 255]):
+                    tmp = Node(x, y, node, iteration)
+                    # Check if node exists in queue, if it does set minimum possible weight
+                    if not queue.decreaseWeight(tmp):
+                        # Else add node to queue
+                        queue.insert(tmp)
+            visited.add(node)
+
+        # ===== Retrace path =====
+        while (node.x, node.y) != (-1, -1):
+            self.img[node.y, node.x] = [0, 0, 255]
+            node = node.via
+
+        # ===== Write Image =====
+        return self.write()
+
     def Astar(self):
         """
             Apply Astar search algorithm
@@ -152,12 +194,6 @@ class MazeSolve:
         iteration = 0
 
         # ===== Algorithm =====
-        def heuristic(x, y):
-            """
-                Find Euclidean distance between (x,y) and dst
-            """
-            return (self.dst[0] - x) ** 2 + (self.dst[1] - y) ** 2
-
         while (node.x, node.y) != self.dst:
             node = queue.extract_min()
             if node in visited:
@@ -166,7 +202,7 @@ class MazeSolve:
             for x, y in self.getAdjacent(node):
                 # Check if (x,y) is white node
                 if np.array_equal(self.img[y, x], [255, 255, 255]):
-                    tmp = Node(x, y, node, iteration + heuristic(x, y))
+                    tmp = Node(x, y, node, iteration + self.heuristic(x, y, self.dst))
                     # Check if node exists in queue, if it does set minimum possible weight
                     if not queue.decreaseWeight(tmp):
                         # Else add node to queue
@@ -181,23 +217,22 @@ class MazeSolve:
         # ===== Write Image =====
         return self.write()
 
-    def meetInMiddle(self):
+    def mitmDijakstra(self):
+        """
+            Apply Dijakstra from src and dst
+            If an intersection is found,trace the path
+        """
         # ===== Init =====
         src = Node(*self.src, (-1, -1), 0)
         dst = Node(*self.dst, (-2, -2), 0)
-        srcData = {"queue": PriorityQueue(), "visited": set()}
-        dstData = {"queue": PriorityQueue(), "visited": set()}
+        srcData = {"queue": PriorityQueue(), "visited": set(), "dst": self.dst}
+        dstData = {"queue": PriorityQueue(), "visited": set(), "dst": self.src}
         srcData["queue"].insert(src)
         dstData["queue"].insert(dst)
         common = set()
         iteration = 0
 
-        def heuristic(x, y, dst):
-            """
-                Find Euclidean distance between (x,y) and dst
-            """
-            return (dst[0] - x) ** 2 + (dst[1] - y) ** 2
-
+        # ===== Algorithm =====
         while len(common) == 0:
             iteration += 1
             for data in [srcData, dstData]:
@@ -207,7 +242,65 @@ class MazeSolve:
                 for x, y in self.getAdjacent(node):
                     # Check if (x,y) is white node
                     if np.array_equal(self.img[y, x], [255, 255, 255]):
-                        tmp = Node(x, y, node, iteration + heuristic(x, y, self.dst))
+                        tmp = Node(x, y, node, iteration)
+                        # Check if node exists in queue, if it does set minimum possible weight
+                        if not data["queue"].decreaseWeight(tmp):
+                            # Else add node to queue
+                            data["queue"].insert(tmp)
+                data["visited"].add(node)
+            common = srcData["visited"].intersection(dstData["visited"])
+        common = list(common)[0]
+
+        # ===== Backtrack =====
+        nodeSrc = srcData["visited"].pop()
+        nodeDst = dstData["visited"].pop()
+        while nodeDst != common:
+            nodeDst = dstData["visited"].pop()
+        while nodeSrc != common:
+            nodeSrc = srcData["visited"].pop()
+
+        # ===== Retrace path =====
+        while (nodeSrc.x, nodeSrc.y) != self.src:
+            self.img[nodeSrc.y, nodeSrc.x] = [0, 0, 255]
+            nodeSrc = nodeSrc.via
+        self.img[nodeSrc.y, nodeSrc.x] = [0, 0, 255]
+
+        while (nodeDst.x, nodeDst.y) != self.dst:
+            self.img[nodeDst.y, nodeDst.x] = [0, 0, 255]
+            nodeDst = nodeDst.via
+        self.img[nodeDst.y, nodeDst.x] = [0, 0, 255]
+
+        # ===== Write Changes =====
+        return self.write()
+
+    def mitmAstar(self):
+        """
+            Apply Astar from src and dst
+            If an intersection is found,trace the path
+        """
+        # ===== Init =====
+        src = Node(*self.src, (-1, -1), 0)
+        dst = Node(*self.dst, (-2, -2), 0)
+        srcData = {"queue": PriorityQueue(), "visited": set(), "dst": self.dst}
+        dstData = {"queue": PriorityQueue(), "visited": set(), "dst": self.src}
+        srcData["queue"].insert(src)
+        dstData["queue"].insert(dst)
+        common = set()
+        iteration = 0
+
+        # ===== Algorithm =====
+        while len(common) == 0:
+            iteration += 1
+            for data in [srcData, dstData]:
+                node = data["queue"].extract_min()
+                if node in data["visited"]:
+                    continue
+                for x, y in self.getAdjacent(node):
+                    # Check if (x,y) is white node
+                    if np.array_equal(self.img[y, x], [255, 255, 255]):
+                        tmp = Node(
+                            x, y, node, iteration + self.heuristic(x, y, data["dst"])
+                        )
                         # Check if node exists in queue, if it does set minimum possible weight
                         if not data["queue"].decreaseWeight(tmp):
                             # Else add node to queue
