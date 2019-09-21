@@ -5,8 +5,8 @@ import sys
 
 
 if __name__ == "__main__":
-    s = MazeSolve(sys.argv[1])
+    s = MazeSolve("2.png")
     start = time.time()
     image = s.meetInMiddle()
     print("Elapsed:", time.time() - start)
-    # display(image, 0)
+    display(image, 0)
