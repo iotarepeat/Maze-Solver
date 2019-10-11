@@ -101,7 +101,13 @@ class Node:
 
 
 class MazeSolve:
-    def __init__(self, fileName):
+    def __init__(
+        self,
+        fileName,
+        visualization=False,
+        visualization_speed=50,
+        preProcessImage=True,
+    ):
         """
             TODO: Generalize method for finding src and dst
             - Read image,
@@ -109,9 +115,12 @@ class MazeSolve:
             - Preprocess the image
             - Find src, dst (Only white in first and last row)
         """
+        self.visualization = visualization
+        self.visualization_speed = visualization_speed
         img = cv2.imread(fileName)
         self.size = img.shape[:2]
-        img = preProcess(img)
+        if preProcessImage:
+            img = preProcess(img)
         self.src = (np.where(img[0] == [255, 255, 255])[0][0], 0)
         self.dst = (
             np.where(img[img.shape[0] - 1] == [255, 255, 255])[0][0],
@@ -134,6 +143,13 @@ class MazeSolve:
                     retList.append((x, y))
             sign *= -1
         return retList
+
+    def showFrame(self, node):
+        if self.visualization:
+            cv2.imshow("Frame", self.img)
+            if cv2.waitKey(1) == 27:
+                cv2.destroyAllWindows()
+                exit(0)
 
     def heuristic(self, x, y, dst):
         """
@@ -158,6 +174,10 @@ class MazeSolve:
             node = queue.extract_min()
             if node in visited:
                 continue
+            if self.visualization:
+                self.img[node.y, node.x] = [255, 0, 0]
+            if iteration % self.visualization_speed == 0:
+                self.showFrame(node)
             iteration += 1
             for x, y in self.getAdjacent(node):
                 # Check if (x,y) is white node
@@ -198,6 +218,10 @@ class MazeSolve:
             node = queue.extract_min()
             if node in visited:
                 continue
+            if self.visualization:
+                self.img[node.y, node.x] = [255, 0, 0]
+            if iteration % self.visualization_speed == 0:
+                self.showFrame(node)
             iteration += 1
             for x, y in self.getAdjacent(node):
                 # Check if (x,y) is white node
@@ -235,10 +259,14 @@ class MazeSolve:
         # ===== Algorithm =====
         while len(common) == 0:
             iteration += 1
-            for data in [srcData, dstData]:
+            for ind, data in enumerate([srcData, dstData]):
                 node = data["queue"].extract_min()
                 if node in data["visited"]:
                     continue
+                if self.visualization:
+                    self.img[node.y, node.x] = [255, 0, 0] if ind else [0, 255, 0]
+                if iteration % self.visualization_speed == 0:
+                    self.showFrame(node)
                 for x, y in self.getAdjacent(node):
                     # Check if (x,y) is white node
                     if np.array_equal(self.img[y, x], [255, 255, 255]):
@@ -291,10 +319,14 @@ class MazeSolve:
         # ===== Algorithm =====
         while len(common) == 0:
             iteration += 1
-            for data in [srcData, dstData]:
+            for ind, data in enumerate([srcData, dstData]):
                 node = data["queue"].extract_min()
                 if node in data["visited"]:
                     continue
+                if self.visualization:
+                    self.img[node.y, node.x] = [255, 0, 0] if ind else [0, 255, 0]
+                if iteration % self.visualization_speed == 0:
+                    self.showFrame(node)
                 for x, y in self.getAdjacent(node):
                     # Check if (x,y) is white node
                     if np.array_equal(self.img[y, x], [255, 255, 255]):
